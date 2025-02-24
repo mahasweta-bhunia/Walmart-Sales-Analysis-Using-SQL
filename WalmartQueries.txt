@@ -1,0 +1,85 @@
+use walmart_sales_db;
+select * from train;
+select * from test;
+select * from stores;
+select * from features;
+/* Which stores has highest total sales?*/
+select Store, sum(Weekly_Sales) as Total_Sales
+from train
+group by Store
+order by Total_Sales desc;
+
+/*Which type of stores have higher average sales?*/
+select s.Type, round(avg(t.Weekly_Sales), 2) as Avg_Sales
+from train as t
+join stores as s
+on s.Store = t.Store
+group by s.Type; 
+
+/* Which department generate the most revenue?*/
+select Dept, sum(Weekly_Sales) as Total_Sales
+from train
+group by Dept 
+order by Total_Sales desc
+limit 5; 
+
+/*Do sales increase during holiday weeks?*/
+select IsHoliday, sum(Weekly_Sales) as Total_Sales
+from train
+group by IsHoliday;
+
+/*How do sales change each month?*/
+select date_format(date, '%Y-%m') as month,
+       sum(Weekly_Sales) as total_sales,
+       lag(sum(Weekly_Sales)) over (order by date_format(date, '%Y-%m')) as Prev_month_sales,
+       round((sum(Weekly_Sales) - lag(sum(Weekly_Sales)) over (order by date_format(date, '%Y-%m')))/
+       lag(sum(Weekly_Sales)) over (order by date_format(date, '%Y-%m')) * 100, 2) as Growth_Rate
+       from train
+       group by month;
+       
+/*Does the fluctuation in fuel prices impact weekly sales?*/
+select case 
+          when f.Fuel_Price < 2 then "Low"
+          when f.Fuel_Price between 2 and 3 then "Medium"
+          else "high"
+		end as Fuel_price_category,
+        round(avg(t.Weekly_Sales), 2) as Avg_Sales
+ from train as t
+ join features as f
+ on f.Store = t.Store and t.Date = f.Date
+ group by Fuel_price_category;
+ 
+ /*Which store type is most efficient in revenue generation?*/
+ select s.Type, round(sum(t.Weekly_Sales)/sum(s.Size), 2) as revenue_per_sqr
+ from train as t
+ join stores as s
+ on s.Store = t.Store
+ group by s.Type
+ order by revenue_per_sqr desc;
+ 
+/*Do discounts increase sales?*/
+select f.MarkDown1, round(avg(t.Weekly_Sales),2) as Avg_Sales
+from train as t
+join features as f
+on t.Store = f.Store and f.Date = t.Date
+group by f.MarkDown1
+order by Avg_Sales desc;
+
+/* Which top 5 departments have the highest variation in sales?*/
+select Dept, max(Weekly_Sales) - min(Weekly_Sales) as Sales_Fluctuation
+from train
+group by Dept
+order by Sales_Fluctuation desc
+limit 5;
+
+/*Which stores have sales consistantly decreasing over time?*/
+with Sales_Data as
+(select Store, Date, Weekly_Sales,
+	lag(Weekly_Sales,1) over (partition by Store order by Date) as Prev_Week_Sales
+    from train)
+select Store, count(*) as Declining_Weeks
+from Sales_Data
+where Weekly_Sales < Prev_Week_Sales
+group by Store
+order by Declining_Weeks desc
+limit 10;
